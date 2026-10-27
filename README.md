@@ -164,6 +164,8 @@ Copy `.env.example` to `.env`. Everything in it is optional; set only what you w
 
 Set `ANTHROPIC_API_KEY`. The default model is `claude-opus-5-5`; override it with `ANTHROPIC_MODEL`, and the reasoning effort with `RELAY_EFFORT` (default `medium`). With a key set, free-form requests are planned by Claude instead of the scripted model. This works with demo connectors too, so you can try real planning on the fake workspace before connecting anything.
 
+A live check on the demo connectors (`notion-action-items-to-slack`, `claude-opus-5-5`, effort `low`) finished in four model turns: `notion_search` and `slack_list_channels` in parallel, then `notion_read_page`, then `slack_post_message`, which paused for approval and ran once approved. From the second turn on, the prompt prefix was served from the cache (6,540 cache-read tokens against 10 uncached input tokens over the run), and the run cost about $0.025 at list prices.
+
 ### Slack
 
 1. Create an app at https://api.slack.com/apps ("From scratch").
@@ -182,7 +184,7 @@ Set `ANTHROPIC_API_KEY`. The default model is `claude-opus-5-5`; override it wit
 
 When either provider has credentials, connectors switch to live mode (force it with `CONNECTOR_MODE=live|demo`), and **Connect** in the sidebar runs the real authorization-code flow.
 
-These steps follow the providers' documentation. The live Slack, Notion and Claude paths are covered by unit tests against stubbed HTTP responses, not by tests against the real services; see Limitations.
+These steps follow the providers' documentation. The live Slack and Notion clients are covered by unit tests against stubbed HTTP responses, not by tests against the real services; see Limitations.
 
 ### MCP server
 
@@ -246,7 +248,7 @@ CI (`.github/workflows/ci.yml`) runs `npm ci`, typecheck, tests and build on Nod
 ## Limitations and next steps
 
 - **No user accounts.** Each browser gets an anonymous workspace through its cookie. Any request without a cookie creates a new one, and nothing cleans up unused workspaces, so a public deployment would need authentication or rate limiting first. A multi-user version needs real authentication, workspace memberships, and roles (for example, who may approve writes).
-- **Live integrations are not exercised end to end.** The live Claude, Slack and Notion paths are tested against stubbed responses only. Recorded fixtures, or a staging Slack and Notion workspace in CI, would close that gap.
+- **Live Slack and Notion are not exercised end to end.** Their clients are tested against stubbed responses only, and CI uses a scripted model rather than live Claude. Recorded fixtures, or a staging Slack and Notion workspace in CI, would close that gap.
 - **The scripted demo model is not a language model.** It handles the three bundled skills and a few phrasings; anything else gets an explanation and a pointer to set an API key.
 - **Single process.** Horizontal scaling needs a shared database and pub/sub for run events.
 - **Connector coverage is narrow.** It has eight tools, no pagination past the first 200 channels or messages, and a Markdown ↔ Notion converter that handles common blocks and keeps inline formatting as plain text.
