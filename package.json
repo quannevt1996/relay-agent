@@ -1,0 +1,26 @@
+{
+  "name": "relay-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agentic workspace assistant: Claude tool-calling over Slack and Notion connectors with OAuth 2.0, reusable skills, human approval for write actions, and run traces.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c blue,magenta \"npm:dev -w server\" \"npm:dev -w web\"",
+    "build": "npm run build -w web && npm run build -w server",
+    "start": "npm run start -w server",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces",
+    "mcp": "npm run mcp -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
