@@ -22,7 +22,8 @@ export function createApp(services: Services): Hono<AppEnv> {
   app.use("*", secureHeaders());
   // Mutating requests must come from the app's own origin(s). JSON bodies
   // already force a CORS preflight cross-site; this also covers form posts.
-  app.use("/api/*", csrf({ origin: [new URL(config.publicUrl).origin, new URL(config.webUrl).origin] }));
+  const trustedOrigins = [config.publicUrl, ...(config.webUrl ? [config.webUrl] : [])].map((url) => new URL(url).origin);
+  app.use("/api/*", csrf({ origin: trustedOrigins }));
 
   app.get("/api/health", (c) => c.json({ ok: true }));
 

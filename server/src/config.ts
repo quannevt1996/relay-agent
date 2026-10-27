@@ -15,7 +15,11 @@ export interface Config {
   port: number;
   /** Public origin of the API server; OAuth redirect URIs are built from it. */
   publicUrl: string;
-  /** Where the browser is sent after an OAuth round-trip (the Vite dev server in development). */
+  /**
+   * Origin of the web UI when it is not served by this server. Empty (the
+   * default) means the same origin, so post-OAuth redirects are relative and
+   * also work through the Vite dev proxy.
+   */
   webUrl: string;
   dataDir: string;
   skillsDir: string;
@@ -90,7 +94,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     port,
     publicUrl,
-    webUrl: (env.RELAY_WEB_URL ?? publicUrl).replace(/\/$/, ""),
+    webUrl: (env.RELAY_WEB_URL ?? "").replace(/\/$/, ""),
     dataDir,
     skillsDir: path.resolve(env.RELAY_SKILLS_DIR ?? path.join(repoRoot, "skills")),
     webDistDir: path.join(repoRoot, "web", "dist"),
