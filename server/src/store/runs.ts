@@ -165,12 +165,21 @@ export class RunStore {
     return rows.map((r) => ({ seq: r.seq, event: JSON.parse(r.payload_json) as RunEvent, createdAt: r.created_at }));
   }
 
-  /** Runs that were mid-turn when the process died cannot be resumed safely. */
-  failInterrupted(): number {
-    const result = this.db
-      .prepare("UPDATE runs SET status = 'failed', error = ?, updated_at = ? WHERE status = 'running'")
-      .run("Interrupted by a server restart", nowIso());
-    return Number(result.changes);
+  /**
+   * Startup maintenance across all workspaces. A run that was mid-turn when
+   * the process died may have half-finished a write, so it is failed rather
+   * than retried. Runs waiting for approval are untouched: their state is
+   * complete and they resume normally.
+   */
+  failInterrupted(): string[] {
+    const message = "Interrupted by a server restart";
+    const rows = this.db.prepare("SELECT id FROM runs WHERE status = 'running'").all() as { id: string }[];
+    for (const { id } of rows) {
+      this.db.prepare("UPDATE runs SET status = 'failed', error = ?, updated_at = ? WHERE id = ?").run(message, nowIso(), id);
+      this.appendEvent(id, { type: "error", message });
+      this.appendEvent(id, { type: "done", status: "failed", answer: null });
+    }
+    return rows.map((r) => r.id);
   }
 }
 

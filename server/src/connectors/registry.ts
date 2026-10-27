@@ -86,9 +86,21 @@ export class ConnectorApis {
   constructor(
     readonly mode: ConnectorMode,
     private readonly oauth: Pick<OAuthService, "getAccessToken">,
+    /**
+     * Demo mode only. Live clients find out lazily (no token, no call); demo
+     * clients need an explicit check so "disconnect" behaves the same way.
+     */
+    private readonly isConnected: (workspaceId: string, provider: ProviderId) => boolean = () => true,
   ) {}
 
   get(workspaceId: string, connector: Connector): unknown {
+    if (this.mode === "demo" && !this.isConnected(workspaceId, connector.id)) {
+      throw new ConnectorError(
+        "not_connected",
+        `${connector.displayName} is not connected for this workspace`,
+        `Ask the user to connect ${connector.displayName} on the Connections panel.`,
+      );
+    }
     const key = `${workspaceId}:${connector.id}`;
     let client = this.clients.get(key);
     if (!client) {

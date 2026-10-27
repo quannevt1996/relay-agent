@@ -94,6 +94,10 @@ export class ConnectionStore {
     };
   }
 
+  has(workspaceId: string, provider: ProviderId): boolean {
+    return this.db.prepare("SELECT 1 FROM connections WHERE workspace_id = ? AND provider = ?").get(workspaceId, provider) !== undefined;
+  }
+
   list(workspaceId: string): ConnectionInfo[] {
     const rows = this.db
       .prepare("SELECT * FROM connections WHERE workspace_id = ? ORDER BY provider")
