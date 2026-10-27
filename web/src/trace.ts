@@ -17,7 +17,7 @@ export interface TurnItem {
   isAnswer: boolean;
 }
 
-export type ToolStatus = "running" | "awaiting_approval" | "approved" | "rejected" | "succeeded" | "failed";
+export type ToolStatus = "running" | "awaiting_approval" | "approved" | "rejected" | "succeeded" | "failed" | "not_run";
 
 export interface ToolItem {
   kind: "tool";
@@ -149,7 +149,9 @@ export function applyEvent(state: TraceState, event: RunEvent): TraceState {
       return { ...state, error: event.message };
     case "done": {
       const lastTurn = [...state.items].reverse().find((i): i is TurnItem => i.kind === "turn");
-      const next = { ...state, status: event.status, answer: event.answer, done: true };
+      // A run cancelled while writes were waiting never runs them.
+      const items = state.items.map((i) => (i.kind === "tool" && i.status === "awaiting_approval" ? { ...i, status: "not_run" as const } : i));
+      const next = { ...state, items, status: event.status, answer: event.answer, done: true };
       return event.answer && lastTurn ? updateTurn(next, lastTurn.turn, (t) => ({ ...t, isAnswer: true })) : next;
     }
   }

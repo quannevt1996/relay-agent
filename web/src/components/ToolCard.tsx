@@ -10,6 +10,7 @@ const STATUS_TEXT: Record<ToolStatus, string> = {
   rejected: "declined",
   succeeded: "ok",
   failed: "error",
+  not_run: "not run",
 };
 
 interface Props {

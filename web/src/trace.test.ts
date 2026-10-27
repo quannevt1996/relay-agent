@@ -64,6 +64,12 @@ describe("applyEvent", () => {
     ]);
   });
 
+  it("retires pending approvals when a run ends without them", () => {
+    const state = fold([...approvalRun, { type: "done", status: "cancelled", answer: null }]);
+    expect(state.items[1]).toMatchObject({ toolUseId: "tu_1", status: "not_run" });
+    expect(pendingApprovals(state)).toEqual([]);
+  });
+
   it("records tool errors with their hint, and run errors", () => {
     const state = fold([
       { type: "turn_started", turn: 1 },
