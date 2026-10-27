@@ -9,14 +9,21 @@ export interface PendingToolUse {
   input: unknown;
 }
 
+export interface ApprovalDecision {
+  approved: boolean;
+  /** Optional note from the reviewer; passed to the model when a call is declined. */
+  reason?: string;
+}
+
 /** A model turn whose write tools are waiting on a human decision. */
 export interface PendingApproval {
   /** Every tool_use block of the turn, in the order the model emitted them. */
   toolUses: PendingToolUse[];
   /** Results already produced for this turn (reads, validation errors). */
   results: Anthropic.Beta.BetaToolResultBlockParam[];
+  /** Tool use ids that need a decision before the turn can finish. */
   awaiting: string[];
-  decisions: Record<string, boolean>;
+  decisions: Record<string, ApprovalDecision>;
 }
 
 /** Everything needed to resume the agent loop, including after a restart. */

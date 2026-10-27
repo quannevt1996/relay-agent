@@ -5,6 +5,8 @@ export type RunStatus = "running" | "awaiting_approval" | "completed" | "failed"
 
 export const TERMINAL_STATUSES: readonly RunStatus[] = ["completed", "failed", "cancelled"];
 
+export const isTerminal = (status: RunStatus): boolean => TERMINAL_STATUSES.includes(status);
+
 export interface UsageTotals {
   inputTokens: number;
   outputTokens: number;
@@ -19,18 +21,38 @@ export const emptyUsage = (): UsageTotals => ({
   cacheCreationInputTokens: 0,
 });
 
+/**
+ * The trace of a run. Everything the UI shows is rebuilt from these events,
+ * so a page reload (or a second tab) replays the same timeline.
+ */
 export type RunEvent =
-  | { type: "run_started"; prompt: string; skillId: string | null; model: string }
+  | { type: "run_started"; prompt: string | null; skillId: string | null; model: string; autoApprove: boolean }
   | { type: "status"; status: RunStatus }
+  | { type: "turn_started"; turn: number }
   | { type: "text_delta"; turn: number; delta: string }
   | { type: "text"; turn: number; text: string }
+  /** A short progress note the model wrote between tool calls (returned as a thinking block). */
+  | { type: "progress"; turn: number; text: string }
+  | {
+      type: "model_turn";
+      turn: number;
+      stopReason: string | null;
+      durationMs: number;
+      /** Tokens for this turn only. */
+      usage: UsageTotals;
+      costUsd: number | null;
+      /** Running totals for the whole run. */
+      totalUsage: UsageTotals;
+      totalCostUsd: number | null;
+    }
   | {
       type: "tool_call";
       turn: number;
       toolUseId: string;
       tool: string;
       input: unknown;
-      sideEffect: SideEffect;
+      /** Null when the model named a tool this run does not offer. */
+      sideEffect: SideEffect | null;
       needsApproval: boolean;
     }
   | {
@@ -44,10 +66,9 @@ export type RunEvent =
       durationMs: number;
     }
   | { type: "approval_required"; toolUseId: string; tool: string; input: unknown }
-  | { type: "approval_resolved"; toolUseId: string; approved: boolean }
-  | { type: "usage"; turn: number; usage: UsageTotals; costUsd: number | null }
+  | { type: "approval_resolved"; toolUseId: string; approved: boolean; reason?: string }
   | { type: "error"; message: string }
-  | { type: "done"; status: RunStatus };
+  | { type: "done"; status: RunStatus; answer: string | null };
 
 /** Events that are only streamed live and never written to the database. */
 export const EPHEMERAL_EVENTS: ReadonlySet<RunEvent["type"]> = new Set(["text_delta"]);

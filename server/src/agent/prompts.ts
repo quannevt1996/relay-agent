@@ -31,7 +31,9 @@ export function firstUserMessage(options: {
 }): string {
   const parts = [`Current time: ${options.now.toISOString()}`];
   if (options.skill) {
-    parts.push(`Run the "${options.skill.name}" skill with these inputs:\n${JSON.stringify(options.inputs ?? {}, null, 2)}`);
+    parts.push(
+      `Run the "${options.skill.name}" skill (id: ${options.skill.id}) with these inputs:\n${JSON.stringify(options.inputs ?? {}, null, 2)}`,
+    );
     if (options.prompt) parts.push(`Additional instructions: ${options.prompt}`);
   } else {
     parts.push(options.prompt ?? "");
