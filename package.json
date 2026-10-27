@@ -18,7 +18,7 @@
     "start": "npm run start -w server",
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm run test --workspaces",
-    "mcp": "npm run mcp -w server"
+    "mcp": "npm run --silent mcp -w server"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
