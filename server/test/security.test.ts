@@ -33,6 +33,14 @@ describe("Vault", () => {
     expect(() => vault.decrypt([version, iv, flip(tag!), ciphertext].join("."), "ad")).toThrow();
   });
 
+  it("rejects a truncated authentication tag or a wrong-size IV", () => {
+    const [version, iv, tag, ciphertext] = vault.encrypt("xoxb-secret", "ad").split(".");
+    const shortTag = Buffer.from(tag!, "base64url").subarray(0, 4).toString("base64url");
+    expect(() => vault.decrypt([version, iv, shortTag, ciphertext].join("."), "ad")).toThrow(/Unrecognized/);
+    const longIv = Buffer.alloc(16).toString("base64url");
+    expect(() => vault.decrypt([version, longIv, tag, ciphertext].join("."), "ad")).toThrow(/Unrecognized/);
+  });
+
   it("binds a ciphertext to its associated data (tenant + provider)", () => {
     const envelope = vault.encrypt("xoxb-secret", "ws_a:slack");
     expect(() => vault.decrypt(envelope, "ws_b:slack")).toThrow();

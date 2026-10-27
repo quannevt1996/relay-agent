@@ -305,9 +305,9 @@ describe("HTTP API", () => {
       const state = stateFrom((await alice.request("/api/oauth/slack/start")).headers.get("location")!);
 
       const stolen = await mallory.request(`/api/oauth/slack/callback?code=abc&state=${state}`);
-      expect(oauthError(stolen)).toContain("does not belong to this workspace");
+      expect(oauthError(stolen)).toBe("state_mismatch");
       const replay = await alice.request(`/api/oauth/slack/callback?code=abc&state=${state}`);
-      expect(oauthError(replay)).toContain("already used");
+      expect(oauthError(replay)).toBe("invalid_state");
       expect((await mallory.json("/api/connections")).connections[0].connected).toBe(false);
     });
 
@@ -315,9 +315,12 @@ describe("HTTP API", () => {
       const { app } = liveApp();
       const alice = browser(app);
       const denied = await alice.request("/api/oauth/slack/callback?error=access_denied&state=x");
-      expect(oauthError(denied)).toBe("slack: access_denied");
+      expect(oauthError(denied)).toBe("access_denied");
+      expect(new URL(denied.headers.get("location")!).searchParams.get("provider")).toBe("slack");
+      const crafted = await alice.request("/api/oauth/slack/callback?error=Your+account+is+locked.+Call+555-0100");
+      expect(oauthError(crafted)).toBe("authorization_failed");
       const notion = await alice.request("/api/oauth/notion/start");
-      expect(oauthError(notion)).toMatch(/NOTION_CLIENT_ID/);
+      expect(oauthError(notion)).toBe("not_configured");
       expect((await alice.request("/api/oauth/github/start")).status).toBe(404);
     });
   });

@@ -124,7 +124,14 @@ export class OAuthService {
   }
 
   private async refresh(workspaceId: string, providerId: ProviderId, current: TokenSet): Promise<string> {
-    const refreshed = await this.providers[providerId].refresh(this.client(providerId), current.refreshToken!, this.deps.http);
+    const provider = this.providers[providerId];
+    const refreshed = await provider.refresh(this.client(providerId), current.refreshToken!, this.deps.http);
+    // The user may have disconnected or reconnected while the request was in
+    // flight. Saving now would bring back a removed connection or overwrite a
+    // newer grant. The check and the save run without an await in between.
+    if (this.deps.connections.getTokens(workspaceId, providerId)?.refreshToken !== current.refreshToken) {
+      throw new ConnectorError("auth", `${provider.displayName} connection changed during a token refresh`, "Try the action again.");
+    }
     this.deps.connections.save(workspaceId, providerId, {
       ...current,
       ...refreshed,

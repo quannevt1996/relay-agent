@@ -10,14 +10,31 @@ interface Notice {
   text: string;
 }
 
+const PROVIDERS: Record<string, string> = { slack: "Slack", notion: "Notion" };
+
+// The server sends codes, not text; anything unknown gets a generic message,
+// so a crafted link cannot make the app display arbitrary words.
+const OAUTH_ERRORS: Record<string, string> = {
+  access_denied: "access was declined on the consent screen.",
+  authorization_failed: "the provider did not complete the authorization.",
+  missing_code: "the provider's callback was missing its code or state.",
+  invalid_state: "that sign-in link was already used or is unknown. Please try again.",
+  expired_state: "the sign-in took longer than ten minutes. Please try again.",
+  state_mismatch: "the sign-in was started from a different browser session.",
+  not_configured: "OAuth client credentials are not configured on the server.",
+  token_exchange_failed: "exchanging the authorization code failed. The server log has details.",
+};
+
 /** Reads ?connected= / ?oauth_error= left by the OAuth redirect, then removes them from the URL. */
 function takeOAuthNotice(): Notice | null {
   const params = new URLSearchParams(window.location.search);
-  const connected = params.get("connected");
+  const connected = PROVIDERS[params.get("connected") ?? ""];
   const error = params.get("oauth_error");
   if (!connected && !error) return null;
   window.history.replaceState(null, "", window.location.pathname);
-  return error ? { kind: "error", text: `Connection failed: ${error}` } : { kind: "ok", text: `Connected ${connected}.` };
+  if (!error) return { kind: "ok", text: `Connected ${connected}.` };
+  const provider = PROVIDERS[params.get("provider") ?? ""] ?? "the provider";
+  return { kind: "error", text: `Could not connect ${provider}: ${OAUTH_ERRORS[error] ?? "the connection failed."}` };
 }
 
 export function App() {

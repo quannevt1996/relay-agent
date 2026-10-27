@@ -22,6 +22,15 @@ export interface OAuthProvider {
   refresh(client: OAuthClientCredentials, refreshToken: string, http?: HttpOptions): Promise<TokenSet>;
 }
 
+/** Token endpoints should answer JSON; anything else (an HTML error page, a proxy) becomes a ConnectorError. */
+async function readJson(res: Response, provider: string): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    throw new ConnectorError("upstream", `${provider} token endpoint returned a non-JSON response (HTTP ${res.status})`);
+  }
+}
+
 const expiresAt = (expiresIn: unknown) => (typeof expiresIn === "number" ? Date.now() + expiresIn * 1000 : undefined);
 
 // --- Slack: https://api.slack.com/authentication/oauth-v2 ---------------------------------------
@@ -49,7 +58,7 @@ async function slackTokenRequest(
     { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body },
     http,
   );
-  const json = (await res.json()) as SlackTokenResponse;
+  const json = (await readJson(res, "Slack")) as SlackTokenResponse;
   if (!json.ok) throw new ConnectorError("auth", `Slack token exchange failed: ${json.error ?? res.status}`);
   return {
     accessToken: json.access_token,
@@ -110,7 +119,7 @@ async function notionTokenRequest(
     },
     http,
   );
-  const json = (await res.json()) as NotionTokenResponse;
+  const json = (await readJson(res, "Notion")) as NotionTokenResponse;
   if (!res.ok) {
     throw new ConnectorError("auth", `Notion token exchange failed: ${json.error_description ?? json.error ?? res.status}`);
   }

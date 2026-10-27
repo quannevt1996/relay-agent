@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 const VERSION = "v1";
 const IV_BYTES = 12;
+const TAG_BYTES = 16;
 
 /**
  * AES-256-GCM envelope for credentials at rest.
@@ -29,9 +30,13 @@ export class Vault {
     if (version !== VERSION || !iv || !tag || ciphertext === undefined) {
       throw new Error("Unrecognized credential envelope");
     }
-    const decipher = createDecipheriv("aes-256-gcm", this.key, Buffer.from(iv, "base64url"));
+    const ivBytes = Buffer.from(iv, "base64url");
+    const tagBytes = Buffer.from(tag, "base64url");
+    // GCM accepts shorter tags, which are easier to forge; only accept what encrypt() writes.
+    if (ivBytes.length !== IV_BYTES || tagBytes.length !== TAG_BYTES) throw new Error("Unrecognized credential envelope");
+    const decipher = createDecipheriv("aes-256-gcm", this.key, ivBytes, { authTagLength: TAG_BYTES });
     decipher.setAAD(Buffer.from(associatedData, "utf8"));
-    decipher.setAuthTag(Buffer.from(tag, "base64url"));
+    decipher.setAuthTag(tagBytes);
     return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]).toString("utf8");
   }
 }

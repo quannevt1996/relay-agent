@@ -20,6 +20,9 @@ export interface ConnectionView {
   setupHint: string | null;
 }
 
+/** Codes the UI knows how to explain (see web/src/App.tsx). */
+type OAuthFailure = OAuthError["code"] | "access_denied" | "authorization_failed" | "missing_code" | "token_exchange_failed";
+
 function parseProvider(value: string): ProviderId {
   if (value === "slack" || value === "notion") return value;
   throw new HTTPException(404, { message: `Unknown provider "${value}"` });
@@ -56,6 +59,10 @@ export function connectionRoutes(services: Services): Hono<AppEnv> {
     return c.json({ ok: true, removed });
   });
 
+  // Errors go back to the UI as a fixed code that it maps to a message, never
+  // as free text, so a crafted link cannot make the app display arbitrary words.
+  const failed = (provider: ProviderId, code: OAuthFailure) => backToApp({ oauth_error: code, provider });
+
   // Step 1 of the authorization-code flow: a browser navigation, so errors redirect back to the UI.
   app.get("/oauth/:provider/start", (c) => {
     const provider = parseProvider(c.req.param("provider"));
@@ -67,7 +74,7 @@ export function connectionRoutes(services: Services): Hono<AppEnv> {
     try {
       return c.redirect(oauth.begin(workspaceId, provider));
     } catch (err) {
-      if (err instanceof OAuthError) return c.redirect(backToApp({ oauth_error: err.message }));
+      if (err instanceof OAuthError) return c.redirect(failed(provider, err.code));
       throw err;
     }
   });
@@ -76,14 +83,16 @@ export function connectionRoutes(services: Services): Hono<AppEnv> {
   app.get("/oauth/:provider/callback", async (c) => {
     const provider = parseProvider(c.req.param("provider"));
     const { code, state, error } = c.req.query();
-    if (error) return c.redirect(backToApp({ oauth_error: `${provider}: ${error}` }));
-    if (!code || !state) return c.redirect(backToApp({ oauth_error: "Missing code or state in the OAuth callback" }));
+    if (error) return c.redirect(failed(provider, error === "access_denied" ? "access_denied" : "authorization_failed"));
+    if (!code || !state) return c.redirect(failed(provider, "missing_code"));
     try {
       await oauth.complete(c.get("workspaceId"), provider, { code, state });
       return c.redirect(backToApp({ connected: provider }));
     } catch (err) {
-      if (err instanceof OAuthError || err instanceof ConnectorError) {
-        return c.redirect(backToApp({ oauth_error: err.message }));
+      if (err instanceof OAuthError) return c.redirect(failed(provider, err.code));
+      if (err instanceof ConnectorError) {
+        console.warn(`[relay] ${provider} token exchange failed: ${err.message}`);
+        return c.redirect(failed(provider, "token_exchange_failed"));
       }
       throw err;
     }

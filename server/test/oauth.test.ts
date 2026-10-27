@@ -126,6 +126,21 @@ describe("OAuthService access tokens", () => {
     expect(t.connections.getTokens(t.a, "slack")).toMatchObject({ accessToken: "access-2", refreshToken: "refresh-2", scopes: ["a"] });
   });
 
+  it("does not bring back a connection that was removed while a refresh was in flight", async () => {
+    let t!: ReturnType<typeof setup>;
+    t = setup(
+      fakeProvider({
+        refresh: vi.fn(async (): Promise<TokenSet> => {
+          t.connections.delete(t.a, "slack");
+          return { accessToken: "access-2", scopes: [] };
+        }),
+      }),
+    );
+    t.connections.save(t.a, "slack", { accessToken: "old", refreshToken: "refresh-0", expiresAt: 1_000_000, scopes: [] });
+    await expect(t.service.getAccessToken(t.a, "slack")).rejects.toMatchObject({ code: "auth" });
+    expect(t.connections.has(t.a, "slack")).toBe(false);
+  });
+
   it("returns a still-valid token without refreshing, and asks to reconnect when it cannot refresh", async () => {
     const t = setup();
     t.connections.save(t.a, "slack", { accessToken: "valid", expiresAt: 1_000_000 + 3_600_000, scopes: [] });
@@ -158,6 +173,12 @@ describe("provider definitions", () => {
 
     const failing = vi.fn(async () => Response.json({ ok: false, error: "invalid_code" }));
     await expect(slackOAuth.exchangeCode(CLIENT, { code: "c", redirectUri: "x" }, { fetch: failing })).rejects.toThrow(/invalid_code/);
+
+    const htmlError = vi.fn(async () => new Response("<html>Bad gateway</html>", { status: 502 }));
+    await expect(slackOAuth.exchangeCode(CLIENT, { code: "c", redirectUri: "x" }, { fetch: htmlError })).rejects.toMatchObject({
+      code: "upstream",
+      message: expect.stringContaining("non-JSON"),
+    });
   });
 
   it("exchanges a Notion code with HTTP Basic client authentication", async () => {
