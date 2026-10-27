@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AgentRunner, RunError } from "../src/agent/runner.js";
 import { createTestServices, eventTypes, ScriptedModel, text, toolUse } from "./helpers.js";
 
@@ -266,6 +266,74 @@ describe("AgentRunner", () => {
     t.runner.cancel(t.ws, run.id);
     expect(t.runs.get(t.ws, run.id)!.status).toBe("cancelled");
     expect(() => t.runner.decide(t.ws, run.id, "tu_post", true)).toThrow(RunError);
+  });
+
+  it("stops queued approved writes when the run is cancelled part-way", async () => {
+    const t = setup([
+      {
+        content: [
+          toolUse("tu_a", "slack_post_message", { channel: "#general", text: "A" }),
+          toolUse("tu_b", "slack_post_message", { channel: "#general", text: "B" }),
+        ],
+      },
+    ]);
+    const run = t.runner.start(t.ws, { prompt: "Post A and B" });
+    await t.runner.settled(run.id);
+
+    // Hold the first write open so the cancel lands while it is running.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const execute = t.executor.execute.bind(t.executor);
+    const started: string[] = [];
+    vi.spyOn(t.executor, "execute").mockImplementation(async (ws, name, input) => {
+      started.push((input as { text: string }).text);
+      await gate;
+      return execute(ws, name, input);
+    });
+
+    t.runner.decide(t.ws, run.id, "tu_a", true);
+    t.runner.decide(t.ws, run.id, "tu_b", true);
+    await vi.waitFor(() => expect(started).toEqual(["A"]));
+    t.runner.cancel(t.ws, run.id);
+    release();
+    await t.runner.settled(run.id);
+
+    expect(started).toEqual(["A"]);
+    expect(t.runs.get(t.ws, run.id)!.status).toBe("cancelled");
+    expect(t.model.requests).toHaveLength(1);
+  });
+
+  it("runs auto-approved writes after the reads, one at a time, in the model's order", async () => {
+    const t = setup([
+      {
+        content: [
+          toolUse("w1", "notion_create_page", { parent_page: "1f0e8c2a-0000-4000-8000-000000000002", title: "x", content: "y" }),
+          toolUse("r1", "slack_list_channels", {}),
+          toolUse("w2", "slack_post_message", { channel: "#general", text: "z" }),
+        ],
+      },
+      { content: [text("Done.")] },
+    ]);
+    const execute = t.executor.execute.bind(t.executor);
+    const log: string[] = [];
+    vi.spyOn(t.executor, "execute").mockImplementation(async (ws, name, input) => {
+      log.push(`start ${name}`);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      log.push(`end ${name}`);
+      return execute(ws, name, input);
+    });
+
+    const run = t.runner.start(t.ws, { prompt: "Do all three", autoApprove: true });
+    await t.runner.settled(run.id);
+    expect(log).toEqual([
+      "start slack_list_channels",
+      "end slack_list_channels",
+      "start notion_create_page",
+      "end notion_create_page",
+      "start slack_post_message",
+      "end slack_post_message",
+    ]);
+    expect(t.model.lastToolResults().map((r) => r.tool_use_id)).toEqual(["w1", "r1", "w2"]);
   });
 
   it("resumes a paused run from the database with a fresh runner (e.g. after a restart)", async () => {

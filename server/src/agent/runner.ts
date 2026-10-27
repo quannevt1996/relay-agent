@@ -136,15 +136,18 @@ export class AgentRunner {
 
   private launch(workspaceId: string, runId: string): void {
     const controller = new AbortController();
-    const done = this.drive(workspaceId, runId, controller.signal).finally(() => {
-      if (this.active.get(runId)?.controller === controller) this.active.delete(runId);
-    });
+    const done = this.drive(workspaceId, runId, controller.signal)
+      // drive() records its own failures; this only catches a failure to record one (e.g. the database is gone).
+      .catch((err) => console.error(`[relay] run ${runId} loop crashed`, err))
+      .finally(() => {
+        if (this.active.get(runId)?.controller === controller) this.active.delete(runId);
+      });
     this.active.set(runId, { controller, done });
   }
 
   private async drive(workspaceId: string, runId: string, signal: AbortSignal): Promise<void> {
     try {
-      if (this.load(workspaceId, runId).state.pending) await this.completePendingTurn(workspaceId, runId);
+      if (this.load(workspaceId, runId).state.pending) await this.completePendingTurn(workspaceId, runId, signal);
 
       while (!signal.aborted) {
         const run = this.load(workspaceId, runId);
@@ -239,7 +242,8 @@ export class AgentRunner {
     const run = this.load(workspaceId, runId);
     const turn = run.turns;
     const results = new Map<string, ToolResult>();
-    const toRun: PendingToolUse[] = [];
+    const reads: PendingToolUse[] = [];
+    const autoApprovedWrites: PendingToolUse[] = [];
     const awaiting: string[] = [];
 
     for (const use of toolUses) {
@@ -269,12 +273,18 @@ export class AgentRunner {
         awaiting.push(use.id);
         this.emit(runId, { type: "approval_required", toolUseId: use.id, tool: use.name, input: use.input });
       } else {
-        toRun.push({ id: use.id, name: use.name, input: use.input });
+        (tool!.sideEffect === "write" ? autoApprovedWrites : reads).push({ id: use.id, name: use.name, input: use.input });
       }
     }
 
-    // Reads are independent of each other, so run them concurrently.
-    await Promise.all(toRun.map(async (use) => results.set(use.id, await this.runTool(workspaceId, runId, use))));
+    // Reads are independent of each other, so run them concurrently. Writes may
+    // depend on each other (create a page, then append to it), so they run one
+    // at a time in the order the model asked for them.
+    await Promise.all(reads.map(async (use) => results.set(use.id, await this.runTool(workspaceId, runId, use))));
+    for (const use of autoApprovedWrites) {
+      if (isTerminal(this.load(workspaceId, runId).status)) return true;
+      results.set(use.id, await this.runTool(workspaceId, runId, use));
+    }
 
     const current = this.load(workspaceId, runId);
     if (isTerminal(current.status)) return true; // cancelled while tools were running
@@ -298,12 +308,14 @@ export class AgentRunner {
   }
 
   /** Runs approved writes (in the order the model asked for them) and answers the paused turn. */
-  private async completePendingTurn(workspaceId: string, runId: string): Promise<void> {
+  private async completePendingTurn(workspaceId: string, runId: string, signal: AbortSignal): Promise<void> {
     const run = this.load(workspaceId, runId);
     const pending = run.state.pending!;
     const results = new Map(pending.results.map((r) => [r.tool_use_id, r]));
 
     for (const id of pending.awaiting) {
+      // A cancel cannot stop a write that is already running, but it stops the ones queued after it.
+      if (signal.aborted) return;
       const use = pending.toolUses.find((u) => u.id === id)!;
       const decision = pending.decisions[id]!;
       if (decision.approved) {
@@ -315,6 +327,7 @@ export class AgentRunner {
       }
     }
 
+    if (signal.aborted) return;
     const current = this.load(workspaceId, runId);
     current.state.messages.push({ role: "user", content: pending.toolUses.map((u) => results.get(u.id)!) });
     current.state.pending = null;
