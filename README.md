@@ -25,7 +25,7 @@ npm run demo        # builds the UI and server, then serves both on http://local
 
 Open http://localhost:8787, pick a skill and press **Start run**. The run reads Slack, searches Notion, then stops on an approval card. Approve or decline it and watch the run finish. To see error handling, disconnect Notion in the sidebar and run a skill that needs it.
 
-For development with hot reload, `npm run dev` starts the API on :8787 and Vite on http://localhost:5173 (Vite proxies `/api`).
+For development with hot reload, `npm run dev` starts the API on :8787 and Vite on http://localhost:5173 (Vite proxies `/api`). If 8787 is taken, `PORT=8790 npm run dev` moves the API and the proxy together.
 
 The same flow works with curl. The session cookie identifies your workspace, so keep a cookie jar:
 
