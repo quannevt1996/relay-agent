@@ -224,8 +224,6 @@ The server suite runs in-process with an in-memory SQLite database and needs no 
 - **MCP**: tool listing with annotations, and calls through an in-memory client.
 - **Config**, plus the web trace reducer (`web/src/trace.test.ts`).
 
-CI (`.github/workflows/ci.yml`) runs `npm ci`, typecheck, tests and build on Node 22.
-
 ## Configuration
 
 | Variable | Default | Purpose |
@@ -248,7 +246,7 @@ CI (`.github/workflows/ci.yml`) runs `npm ci`, typecheck, tests and build on Nod
 ## Limitations and next steps
 
 - **No user accounts.** Each browser gets an anonymous workspace through its cookie. Any request without a cookie creates a new one, and nothing cleans up unused workspaces, so a public deployment would need authentication or rate limiting first. A multi-user version needs real authentication, workspace memberships, and roles (for example, who may approve writes).
-- **Live Slack and Notion are not exercised end to end.** Their clients are tested against stubbed responses only, and CI uses a scripted model rather than live Claude. Recorded fixtures, or a staging Slack and Notion workspace in CI, would close that gap.
+- **Live Slack and Notion are not exercised end to end.** Their clients are tested against stubbed responses only, and the test suite uses a scripted model rather than live Claude. Recorded fixtures, or a staging Slack and Notion workspace, would close that gap.
 - **The scripted demo model is not a language model.** It handles the three bundled skills and a few phrasings; anything else gets an explanation and a pointer to set an API key.
 - **Single process.** Horizontal scaling needs a shared database and pub/sub for run events.
 - **Connector coverage is narrow.** It has eight tools, no pagination past the first 200 channels or messages, and a Markdown ↔ Notion converter that handles common blocks and keeps inline formatting as plain text.
