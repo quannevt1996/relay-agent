@@ -13,6 +13,7 @@
     "node": ">=22.13"
   },
   "scripts": {
+    "demo": "npm run build && npm start",
     "dev": "concurrently -k -n server,web -c blue,magenta \"npm:dev -w server\" \"npm:dev -w web\"",
     "build": "npm run build -w web && npm run build -w server",
     "start": "npm run start -w server",

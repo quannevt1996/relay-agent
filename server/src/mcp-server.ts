@@ -14,7 +14,7 @@ const TITLES: Record<string, string> = {
 
 /**
  * Exposes the same connector tools the agent uses over the Model Context
- * Protocol, so another MCP client (an IDE, a desktop assistant) can drive
+ * Protocol, so another MCP client (an IDE or a desktop app) can drive
  * Slack and Notion through Relay's connectors and stored credentials.
  *
  * Approval works differently here: the MCP client owns the conversation, so
