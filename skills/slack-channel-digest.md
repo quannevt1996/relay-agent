@@ -12,7 +12,7 @@ tools:
 inputs:
   - name: channel
     label: Slack channel
-    description: Channel name or id, for example #eng-standup.
+    description: "Channel name or id, for example #eng-standup."
     required: true
     default: "#eng-standup"
   - name: hours

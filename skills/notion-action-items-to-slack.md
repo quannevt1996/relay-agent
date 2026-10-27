@@ -16,7 +16,7 @@ inputs:
     default: Postmortem
   - name: channel
     label: Slack channel
-    description: Where to post, for example #incidents.
+    description: "Where to post, for example #incidents."
     required: true
     default: "#incidents"
 ---

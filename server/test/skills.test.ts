@@ -38,6 +38,8 @@ describe("skills loader", () => {
     ]);
     for (const skill of skills) {
       expect(skill.instructions.length).toBeGreaterThan(50);
+      // An unquoted " #" starts a YAML comment and silently truncates the value.
+      for (const input of skill.inputs) expect(input.description ?? "").not.toMatch(/for example$/);
       for (const tool of skill.tools) expect(registry.get(tool)).toBeDefined();
     }
   });
