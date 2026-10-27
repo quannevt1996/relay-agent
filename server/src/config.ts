@@ -71,20 +71,21 @@ function resolveEncryptionKey(env: NodeJS.ProcessEnv, dataDir: string): Buffer {
   return key;
 }
 
+/** Empty values (for example `KEY=` copied from .env.example) count as unset. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const port = Number(env.PORT ?? 8787);
-  const publicUrl = (env.RELAY_PUBLIC_URL ?? `http://localhost:${port}`).replace(/\/$/, "");
-  const dataDir = path.resolve(env.RELAY_DATA_DIR ?? path.join(repoRoot, "data"));
+  const port = Number(env.PORT || 8787);
+  const publicUrl = (env.RELAY_PUBLIC_URL || `http://localhost:${port}`).replace(/\/$/, "");
+  const dataDir = path.resolve(env.RELAY_DATA_DIR || path.join(repoRoot, "data"));
   mkdirSync(dataDir, { recursive: true });
 
-  const effort = (env.RELAY_EFFORT ?? "medium") as Effort;
+  const effort = (env.RELAY_EFFORT || "medium") as Effort;
   if (!EFFORTS.includes(effort)) throw new Error(`RELAY_EFFORT must be one of ${EFFORTS.join(", ")}`);
 
-  const maxTurns = Number(env.RELAY_MAX_TURNS ?? 12);
+  const maxTurns = Number(env.RELAY_MAX_TURNS || 12);
   if (!Number.isInteger(maxTurns) || maxTurns < 1) throw new Error("RELAY_MAX_TURNS must be a positive integer");
 
   const oauthClients = { slack: oauthClient("SLACK", env), notion: oauthClient("NOTION", env) };
-  const requestedMode = env.CONNECTOR_MODE;
+  const requestedMode = env.CONNECTOR_MODE || undefined;
   if (requestedMode !== undefined && !isConnectorMode(requestedMode)) {
     throw new Error("CONNECTOR_MODE must be 'demo' or 'live'");
   }
@@ -94,11 +95,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     port,
     publicUrl,
-    webUrl: (env.RELAY_WEB_URL ?? "").replace(/\/$/, ""),
+    webUrl: (env.RELAY_WEB_URL || "").replace(/\/$/, ""),
     dataDir,
-    skillsDir: path.resolve(env.RELAY_SKILLS_DIR ?? path.join(repoRoot, "skills")),
+    skillsDir: path.resolve(env.RELAY_SKILLS_DIR || path.join(repoRoot, "skills")),
     webDistDir: path.join(repoRoot, "web", "dist"),
-    model: env.ANTHROPIC_MODEL ?? "claude-opus-5-5",
+    model: env.ANTHROPIC_MODEL || "claude-opus-5-5",
     effort,
     maxTurns,
     modelConfigured: Boolean(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN),
